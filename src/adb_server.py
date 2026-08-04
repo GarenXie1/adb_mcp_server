@@ -58,6 +58,23 @@ async def list_devices() -> str:
     return "\n\n".join(device_info)
 
 @mcp.tool()
+async def execute_shell_command(command: str, device_id: Optional[str] = None) -> str:
+    """在设备上执行自定义 shell 命令
+
+    参数:
+        command: 要执行的 shell 命令，例如：ls -l /data/
+        device_id: 设备ID（可选，如果未提供则使用第一个可用设备）
+    """
+    if not command.strip():
+        return "执行 shell 命令失败: 命令不能为空"
+
+    try:
+        device = get_device(device_id)
+        return device.shell(command)
+    except Exception as e:
+        return f"执行 shell 命令失败: {str(e)}"
+
+@mcp.tool()
 async def take_screenshot(device_id: Optional[str] = None) -> str:
     """截取设备屏幕
 

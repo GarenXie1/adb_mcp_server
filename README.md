@@ -89,6 +89,7 @@ adb start-server
 
 ### 设备管理
 - `list_devices`: 列出所有连接的 Android 设备
+- `execute_shell_command`: 在设备上执行自定义 shell 命令
 
 ### 屏幕操作
 - `take_screenshot`: 截取设备屏幕
