@@ -90,6 +90,8 @@ adb start-server
 ### 设备管理
 - `list_devices`: 列出所有连接的 Android 设备
 - `execute_shell_command`: 在设备上执行自定义 shell 命令
+- `adb_root`: 以 root 权限重启目标设备上的 adbd
+- `adb_remount`: 确保 adbd 为 root 后，将目标设备分区重新挂载为可写
 
 ### 屏幕操作
 - `take_screenshot`: 截取设备屏幕

@@ -13,6 +13,8 @@ mcp = FastMCP("android_adb")
 # ADB 常量
 ADB_HOST = "127.0.0.1"
 ADB_PORT = 5037
+ADB_ROOT_RESTART_TIMEOUT_SECONDS = 10
+ADB_ROOT_RETRY_INTERVAL_SECONDS = 0.5
 
 # 辅助函数
 def get_adb_client() -> AdbClient:
@@ -35,6 +37,37 @@ def get_device(device_id: Optional[str] = None):
         raise ValueError(f"未找到指定的设备: {device_id}")
     
     return devices[0]  # 返回第一个设备
+
+
+def _enable_adbd_root(device) -> bool:
+    """启用 adbd root；若已启用则返回 False。"""
+    try:
+        device.root()
+        return True
+    except Exception as e:
+        if "already running as root" in str(e).lower():
+            return False
+        raise
+
+
+def _remount_after_root(device_id: str, root_restarted: bool) -> None:
+    """在 adbd 重启后重新连接目标设备并执行 remount。"""
+    deadline = time.monotonic() + ADB_ROOT_RESTART_TIMEOUT_SECONDS
+
+    while True:
+        try:
+            get_device(device_id).remount()
+            return
+        except Exception as e:
+            if not root_restarted:
+                raise
+
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"设备 {device_id} 在 {ADB_ROOT_RESTART_TIMEOUT_SECONDS} 秒内未能完成重新挂载: {str(e)}"
+                ) from e
+
+            time.sleep(ADB_ROOT_RETRY_INTERVAL_SECONDS)
 
 # 工具实现
 @mcp.tool()
@@ -73,6 +106,32 @@ async def execute_shell_command(command: str, device_id: Optional[str] = None) -
         return device.shell(command)
     except Exception as e:
         return f"执行 shell 命令失败: {str(e)}"
+
+
+@mcp.tool()
+async def adb_root(device_id: Optional[str] = None) -> str:
+    """以 root 权限重启目标设备上的 adbd。"""
+    try:
+        device = get_device(device_id)
+        root_restarted = _enable_adbd_root(device)
+        if root_restarted:
+            return f"设备 {device.serial} 的 adbd 已切换为 root 模式"
+        return f"设备 {device.serial} 的 adbd 已处于 root 模式"
+    except Exception as e:
+        return f"执行 adb root 失败: {str(e)}"
+
+
+@mcp.tool()
+async def adb_remount(device_id: Optional[str] = None) -> str:
+    """确保 adbd 为 root 后，将目标设备分区重新挂载为可写。"""
+    try:
+        device = get_device(device_id)
+        target_device_id = device.serial
+        root_restarted = _enable_adbd_root(device)
+        _remount_after_root(target_device_id, root_restarted)
+        return f"设备 {target_device_id} 已成功以可写方式重新挂载"
+    except Exception as e:
+        return f"执行 adb remount 失败: {str(e)}"
 
 @mcp.tool()
 async def take_screenshot(device_id: Optional[str] = None) -> str:
